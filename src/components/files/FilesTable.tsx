@@ -17,6 +17,7 @@ export default function FilesTable() {
   const [showAddCat, setShowAddCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [changeCategory, setChangeCategory] = useState<string>("");
+  const [changeDescription, setChangeDescription] = useState<string>("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -77,13 +78,14 @@ export default function FilesTable() {
   const openChangeCategory = (file: FileItem) => {
     setChangeTarget(file);
     setChangeCategory(file.category || "");
+    setChangeDescription(file.description || "");
     setShowChangeCat(true);
   };
   const applyChangeCategory = async (categoryName: string) => {
     if (!changeTarget) return;
     try {
       setLoading(true);
-      await fileService.updateCategory(changeTarget._id, categoryName);
+      await fileService.updateMeta(changeTarget._id, { category: categoryName || undefined, description: changeDescription });
       setShowChangeCat(false);
       setChangeTarget(null);
       await fetchFiles();
@@ -156,12 +158,14 @@ export default function FilesTable() {
       </div>
 
       <div className="max-w-full overflow-x-auto">
-        <div className="min-w-[900px]">
+        <div className="min-w-[1000px]">
           <table className="w-full text-left">
             <thead>
               <tr>
                 <th className="px-5 py-3 text-gray-500 text-theme-xs">Name</th>
                 <th className="px-5 py-3 text-gray-500 text-theme-xs">Kategori</th>
+                <th className="px-5 py-3 text-gray-500 text-theme-xs">Deskripsi</th>
+                <th className="px-5 py-3 text-gray-500 text-theme-xs">Uploader</th>
                 <th className="px-5 py-3 text-gray-500 text-theme-xs">Type</th>
                 <th className="px-5 py-3 text-gray-500 text-theme-xs">Size</th>
                 <th className="px-5 py-3 text-gray-500 text-theme-xs">Visibility</th>
@@ -171,11 +175,19 @@ export default function FilesTable() {
             </thead>
             <tbody>
               {files.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-6 text-center text-gray-400">No files</td></tr>
+                <tr><td colSpan={9} className="px-5 py-6 text-center text-gray-400">No files</td></tr>
               ) : files.map((f) => (
                 <tr key={f._id} className="border-t border-gray-100 dark:border-white/[0.05]">
                   <td className="px-5 py-3">{f.originalName}</td>
                   <td className="px-5 py-3">{f.category ? <Badge size="sm">{f.category}</Badge> : <span className="text-gray-400">-</span>}</td>
+                  <td className="px-5 py-3">{f.description ? <span className="text-xs text-gray-700 dark:text-gray-200">{f.description}</span> : <span className="text-gray-400">-</span>}</td>
+                  <td className="px-5 py-3">
+                    {typeof f.uploader === 'object' && f.uploader !== null ? (
+                      <span>{f.uploader.name || f.uploader.phone || f.uploader.email || '-'}</span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3"><Badge size="sm">{f.mimeType || 'unknown'}</Badge></td>
                   <td className="px-5 py-3">{(f.size/1024/1024).toFixed(2)} MB</td>
                   <td className="px-5 py-3">
@@ -246,7 +258,7 @@ export default function FilesTable() {
           <div className="absolute inset-0 bg-black/50" onClick={()=>{setShowChangeCat(false); setChangeTarget(null);}} />
           <div className="relative z-10 w-full max-w-md rounded-lg border border-gray-200 bg-white p-4 shadow-xl dark:border-white/[0.06] dark:bg-[#0B1220]">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-theme-base font-semibold">Ganti Kategori</h3>
+              <h3 className="text-theme-base font-semibold">Ganti Kategori & Deskripsi</h3>
               <button className="px-2 py-1 text-sm" onClick={()=>{setShowChangeCat(false); setChangeTarget(null);}}>Tutup</button>
             </div>
             <div className="space-y-3">
@@ -259,7 +271,16 @@ export default function FilesTable() {
                   ))}
                 </select>
               </div>
-              <div className="flex justify-end gap-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Deskripsi</label>
+                <input
+                  value={changeDescription}
+                  onChange={(e)=>setChangeDescription(e.target.value)}
+                  className="w-full rounded border bg-transparent px-3 py-2 text-sm"
+                  placeholder="Deskripsi singkat file"
+                />
+              </div>
+              <div className="flex justify-end gap-2 mt-3">
                 <Button size="sm" variant="outline" onClick={()=>{setShowChangeCat(false); setChangeTarget(null);}}>Batal</Button>
                 <Button size="sm" onClick={() => applyChangeCategory(changeCategory)}>Simpan</Button>
               </div>

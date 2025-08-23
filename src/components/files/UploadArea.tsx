@@ -12,6 +12,7 @@ export default function UploadArea({ onUploaded }: { onUploaded?: () => void }) 
   const [showAddCat, setShowAddCat] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -52,7 +53,7 @@ export default function UploadArea({ onUploaded }: { onUploaded?: () => void }) 
         setError('Pilih kategori terlebih dahulu');
         return;
       }
-      await fileService.upload(files[0], category, isPublic);
+      await fileService.upload(files[0], category, isPublic, description);
       onUploaded?.();
       if (typeof window !== "undefined") window.dispatchEvent(new Event("files:refresh"));
     } catch (e: any) {
@@ -60,7 +61,7 @@ export default function UploadArea({ onUploaded }: { onUploaded?: () => void }) 
     } finally {
       setIsUploading(false);
     }
-  }, [onUploaded, category, isPublic]);
+  }, [onUploaded, category, isPublic, description]);
 
   return (
     <div className="space-y-3 p-4">
@@ -78,6 +79,16 @@ export default function UploadArea({ onUploaded }: { onUploaded?: () => void }) 
               <option key={c._id} value={c.name}>{c.name}</option>
             ))}
           </select>
+        </div>
+        <div className="flex-1">
+          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">Deskripsi (opsional)</label>
+          <input
+            value={description}
+            onChange={(e)=>setDescription(e.target.value)}
+            placeholder="Tambahkan deskripsi singkat"
+            className="w-full rounded border bg-transparent px-3 py-2 text-sm"
+            disabled={isUploading}
+          />
         </div>
         <div className="pb-1 flex items-center gap-2">
           <input id="isPublic" type="checkbox" checked={isPublic} onChange={(e)=>setIsPublic(e.target.checked)} disabled={isUploading} />

@@ -7,12 +7,12 @@ export async function POST(request: Request) {
   try {
     await dbConnect();
     
-    const { name, email, password, role = 'customer' } = await request.json();
+    const { name, email, phone, password, role = 'customer' } = await request.json();
 
     // Validate input
-    if (!name || !email || !password) {
+    if (!name || !email || !phone || !password) {
       return NextResponse.json(
-        { message: 'Name, email, and password are required' },
+        { message: 'Name, email, phone, and password are required' },
         { status: 400 }
       );
     }
@@ -26,6 +26,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate phone format (E.164-like)
+    const phoneRegex = /^\+?[1-9]\d{7,14}$/;
+    if (!phoneRegex.test(phone)) {
+      return NextResponse.json(
+        { message: 'Please provide a valid phone number in international format' },
+        { status: 400 }
+      );
+    }
+
     // Validate password length
     if (password.length < 6) {
       return NextResponse.json(
@@ -35,10 +44,10 @@ export async function POST(request: Request) {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
     if (existingUser) {
       return NextResponse.json(
-        { message: 'Email already in use' },
+        { message: existingUser.email === email ? 'Email already in use' : 'Phone already in use' },
         { status: 400 }
       );
     }
@@ -47,6 +56,7 @@ export async function POST(request: Request) {
     const user = new User({
       name,
       email,
+      phone,
       passwordHash: password, // Will be hashed by pre-save hook
       role: ['customer', 'admin'].includes(role) ? role : 'customer'
     });

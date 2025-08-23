@@ -74,9 +74,12 @@ export const nextAuthOptions: NextAuthOptions = {
           if (!user?.email) return false;
           let existing = await User.findOne({ email: user.email });
           if (!existing) {
+            // Generate a compliant placeholder phone
+            const phone = `+998${Math.floor(10000000 + Math.random() * 90000000)}`;
             existing = new User({
               name: user.name || user.email.split('@')[0],
               email: user.email,
+              phone,
               role: 'customer',
               // passwordHash left undefined for OAuth users
             });

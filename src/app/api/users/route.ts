@@ -10,9 +10,15 @@ async function requireAdmin(request: Request) {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (token) {
     const decoded = verifyToken(token);
-    if (!decoded) return { ok: false, res: NextResponse.json({ message: 'Invalid token' }, { status: 401 }) } as const;
-    if (decoded.role !== 'admin') return { ok: false, res: NextResponse.json({ message: 'Forbidden' }, { status: 403 }) } as const;
-    return { ok: true, user: decoded } as const;
+    if (decoded) {
+      if (decoded.role !== 'admin') return { ok: false, res: NextResponse.json({ message: 'Forbidden' }, { status: 403 }) } as const;
+      return { ok: true, user: decoded } as const;
+    }
+    // Bearer provided but invalid; attempt fallback to NextAuth cookie session
+    const nextAuthTokenFromBearerFail = await getToken({ req: request as any, secret: process.env.NEXTAUTH_SECRET });
+    if (!nextAuthTokenFromBearerFail) return { ok: false, res: NextResponse.json({ message: 'Invalid token' }, { status: 401 }) } as const;
+    if ((nextAuthTokenFromBearerFail as any).role !== 'admin') return { ok: false, res: NextResponse.json({ message: 'Forbidden' }, { status: 403 }) } as const;
+    return { ok: true, user: nextAuthTokenFromBearerFail } as const;
   }
 
   // Fallback: NextAuth token from cookies
@@ -46,10 +52,10 @@ export async function POST(request: Request) {
 
     await dbConnect();
 
-    const { name, email, password, role = 'customer' } = await request.json();
+    const { name, email, phone, password, role = 'customer' } = await request.json();
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ message: 'Name, email, and password are required' }, { status: 400 });
+    if (!name || !email || !phone || !password) {
+      return NextResponse.json({ message: 'Name, email, phone, and password are required' }, { status: 400 });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -57,14 +63,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Please provide a valid email address' }, { status: 400 });
     }
 
-    const existing = await User.findOne({ email });
+    // Normalize phone: strip spaces/dashes; if starts with 0 -> +62 + rest; then validate E.164-like
+    const rawPhone = String(phone || '').trim().replace(/[\s-]/g, '');
+    const normalizedPhone = rawPhone.startsWith('0') ? '+62' + rawPhone.slice(1) : rawPhone;
+    const phoneRegex = /^\+?[1-9]\d{7,14}$/;
+    if (!phoneRegex.test(normalizedPhone)) {
+      return NextResponse.json({ message: 'Please provide a valid phone number (e.g., +628123456789 or 08xxxx which will be normalized)' }, { status: 400 });
+    }
+
+    const existing = await User.findOne({ $or: [{ email }, { phone: normalizedPhone }] });
     if (existing) {
-      return NextResponse.json({ message: 'Email already in use' }, { status: 409 });
+      return NextResponse.json({ message: existing.email === email ? 'Email already in use' : 'Phone already in use' }, { status: 409 });
     }
 
     const user = new User({
       name,
       email,
+      phone: normalizedPhone,
       passwordHash: password, // hashed by pre-save hook
       role: ['customer', 'admin'].includes(role) ? role : 'customer',
     });

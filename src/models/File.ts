@@ -9,6 +9,7 @@ export interface IFile extends Document {
   s3Key?: string;
   uploader: Types.ObjectId;
   category?: string;
+  description?: string;
   isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -24,6 +25,7 @@ const FileSchema: Schema = new Schema(
     s3Key: { type: String },
     uploader: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     category: { type: String, index: true },
+    description: { type: String, default: '' },
     isPublic: { type: Boolean, default: false },
   },
   { timestamps: true }

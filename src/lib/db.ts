@@ -68,6 +68,7 @@ async function ensureSuperAdmin() {
     const name = process.env.ADMIN_NAME || 'Super Admin';
     const email = process.env.ADMIN_EMAIL;
     const password = process.env.ADMIN_PASSWORD;
+    const adminPhoneEnv = process.env.ADMIN_PHONE;
 
     if (!email || !password) {
       console.warn('[INIT] No admin exists, but ADMIN_EMAIL/ADMIN_PASSWORD are not set. Skipping auto-create.');
@@ -82,9 +83,14 @@ async function ensureSuperAdmin() {
       return;
     }
 
+    // Prepare a valid phone number (E.164-like) for the admin
+    const generatedPhone = `+999${Math.floor(10000000 + Math.random() * 90000000)}`; // +999XXXXXXXX (8 digits)
+    const phone = adminPhoneEnv && /^\+?[1-9]\d{7,14}$/.test(adminPhoneEnv) ? adminPhoneEnv : generatedPhone;
+
     const adminUser = new User({
       name,
       email,
+      phone,
       passwordHash: password, // Will be hashed by pre-save hook
       role: 'admin',
     });

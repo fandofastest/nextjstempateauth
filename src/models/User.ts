@@ -6,6 +6,7 @@ const SALT_WORK_FACTOR = 10;
 export interface IUser extends Document {
   name: string;
   email: string;
+  phone: string;
   passwordHash?: string;
   role: 'customer' | 'admin';
   createdAt: Date;
@@ -21,6 +22,14 @@ const UserSchema: Schema = new Schema({
     lowercase: true,
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address.']
+  },
+  phone: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    // Accepts numbers with optional leading +, length 8-15 digits typical E.164
+    match: [/^\+?[1-9]\d{7,14}$/, 'Please use a valid phone number in international format']
   },
   // Optional for OAuth users (e.g., Google). Credentials flow will enforce presence separately.
   passwordHash: { type: String, required: false },

@@ -15,6 +15,7 @@ type User = {
   _id: string;
   name: string;
   email: string;
+  phone: string;
   role: string;
   createdAt: string;
 };
@@ -24,9 +25,10 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
-  const [form, setForm] = useState<{ name: string; email: string; password: string; role: string }>({
+  const [form, setForm] = useState<{ name: string; email: string; phone: string; password: string; role: string }>({
     name: "",
     email: "",
+    phone: "",
     password: "",
     role: "",
   });
@@ -49,14 +51,35 @@ export default function AdminUsersPage() {
     return headers;
   }, []);
 
+  // Helper: perform fetch and if 401 with 'Invalid token', retry without Authorization header
+  const doFetch = async (url: string, init?: RequestInit) => {
+    const res = await fetch(url, init);
+    if (res.status === 401) {
+      try {
+        const txt = await res.clone().text();
+        if (txt && txt.includes('Invalid token')) {
+          const initNoAuth: RequestInit = {
+            ...init,
+            headers: { ...(init?.headers as any) },
+          };
+          if (initNoAuth.headers && 'Authorization' in (initNoAuth.headers as any)) {
+            delete (initNoAuth.headers as any).Authorization;
+          }
+          return fetch(url, initNoAuth);
+        }
+      } catch {}
+    }
+    return res;
+  };
+
   const fetchUsers = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/users", { headers: { ...authHeader } });
+      const res = await doFetch("/api/users", { headers: { ...authHeader } });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setUsers(data.users || []);
+      setUsers((data.users || []).map((u: any) => ({ ...u, phone: u?.phone ?? "" })));
       setPage(1);
     } catch (e: any) {
       setError(e?.message || "Gagal memuat pengguna");
@@ -88,13 +111,22 @@ export default function AdminUsersPage() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/users", {
+      const rawPhone = (form.phone || "").trim().replace(/[\s\-().]/g, "");
+      const normalizedPhone = rawPhone.startsWith("0") ? "+62" + rawPhone.slice(1) : rawPhone;
+      const payload = {
+        name: form.name?.trim() || "",
+        email: form.email?.trim() || "",
+        phone: normalizedPhone,
+        password: form.password || "",
+        role: form.role,
+      };
+      const res = await doFetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeader },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
-      setForm({ name: "", email: "", password: "", role: roles[0]?.name ?? "" });
+      setForm({ name: "", email: "", phone: "", password: "", role: roles[0]?.name ?? "" });
       await fetchUsers();
       closeModal();
     } catch (e: any) {
@@ -109,7 +141,7 @@ export default function AdminUsersPage() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`/api/users/${id}`, { method: "DELETE", headers: { ...authHeader } });
+      const res = await doFetch(`/api/users/${id}`, { method: "DELETE", headers: { ...authHeader } });
       if (!res.ok) throw new Error(await res.text());
       await fetchUsers();
     } catch (e: any) {
@@ -125,10 +157,20 @@ export default function AdminUsersPage() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`/api/users/${editing._id}`, {
+      const payload: Record<string, any> = {};
+      const n = editing.name?.trim();
+      const e2 = editing.email?.trim();
+      const rawP = (editing.phone || '').trim().replace(/[\s\-().]/g, '');
+      const p = rawP.startsWith('0') ? '+62' + rawP.slice(1) : rawP;
+      if (n) payload.name = n;
+      if (e2) payload.email = e2;
+      if (p) payload.phone = p;
+      if (editing.role) payload.role = editing.role;
+
+      const res = await doFetch(`/api/users/${editing._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeader },
-        body: JSON.stringify({ name: editing.name, email: editing.email, role: editing.role }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
       setEditing(null);
@@ -161,15 +203,28 @@ export default function AdminUsersPage() {
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
             <div className="col-span-1">
               <Label>Nama</Label>
-              <Input type="text" placeholder="Nama" onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <Input type="text" placeholder="Nama" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="col-span-1">
               <Label>Email</Label>
-              <Input type="email" placeholder="email@domain.com" onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              <Input type="email" placeholder="email@domain.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="col-span-1">
+              <Label>Phone</Label>
+              <Input
+                type="tel"
+                placeholder="e.g. +628123456789"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                required
+                pattern="^(?:\\+?[1-9][\\d\\s\\-\\.\\(\\)]{7,20}|0[\\d\\s\\-\\.\\(\\)]{8,20})$"
+                title="Contoh: +62812..., 0812..., 62 812-xxx. Spasi, tanda -, titik, dan () boleh; akan dinormalisasi otomatis."
+                hint="Boleh +62812..., 62 812..., atau 08xxxx. Spasi/-, . dan () boleh; akan dinormalisasi otomatis."
+              />
             </div>
             <div className="col-span-1">
               <Label>Password</Label>
-              <Input type="password" placeholder="Password" onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+              <Input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
             </div>
             <div className="col-span-1">
               <Label>Role</Label>
@@ -208,6 +263,7 @@ export default function AdminUsersPage() {
                 <TableRow>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Nama</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Email</TableCell>
+                  <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Phone</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Role</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Dibuat</TableCell>
                   <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400">Aksi</TableCell>
@@ -217,11 +273,11 @@ export default function AdminUsersPage() {
               <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                 {loading ? (
                   <TableRow>
-                    <TableCell className="px-5 py-6" colSpan={5}>Memuat...</TableCell>
+                    <TableCell className="px-5 py-6" colSpan={6}>Memuat...</TableCell>
                   </TableRow>
                 ) : pagedUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell className="px-5 py-6 text-center text-gray-400" colSpan={5}>Tidak ada data</TableCell>
+                    <TableCell className="px-5 py-6 text-center text-gray-400" colSpan={6}>Tidak ada data</TableCell>
                   </TableRow>
                 ) : (
                   pagedUsers.map((u) => (
@@ -230,11 +286,12 @@ export default function AdminUsersPage() {
                         <span className="block font-medium text-gray-800 text-theme-sm dark:text-white/90">{u.name}</span>
                       </TableCell>
                       <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{u.email}</TableCell>
+                      <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{u.phone}</TableCell>
                       <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{u.role}</TableCell>
                       <TableCell className="px-4 py-3 text-gray-500 text-start text-theme-sm dark:text-gray-400">{new Date(u.createdAt).toLocaleString()}</TableCell>
                       <TableCell className="px-4 py-3 text-start">
                         <div className="flex items-center gap-2">
-                          <button className="px-3 py-1 border rounded" onClick={() => setEditing(u)}>Edit</button>
+                          <button className="px-3 py-1 border rounded" onClick={() => setEditing({ ...u, phone: (u as any)?.phone ?? "" })}>Edit</button>
                           <button className="px-3 py-1 border rounded text-error-500 border-error-500" onClick={() => handleDelete(u._id)}>Hapus</button>
                         </div>
                       </TableCell>
@@ -267,6 +324,10 @@ export default function AdminUsersPage() {
               <div>
                 <label className="block text-sm mb-1 text-gray-700 dark:text-white/90">Email</label>
                 <input type="email" className="w-full px-3 py-2 border rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white" value={editing.email} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-gray-700 dark:text-white/90">Phone</label>
+                <input type="tel" className="w-full px-3 py-2 border rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white" value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
               </div>
               <div>
                 <label className="block text-sm mb-1 text-gray-700 dark:text-white/90">Role</label>

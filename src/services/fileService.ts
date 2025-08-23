@@ -21,8 +21,9 @@ export interface FileItem {
   mimeType: string;
   storagePath: string;
   s3Key?: string;
-  uploader: string;
+  uploader: string | { _id: string; name?: string; email?: string; phone?: string };
   category?: string;
+  description?: string;
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
@@ -67,11 +68,12 @@ export const fileService = {
     return data.category as CategoryItem;
   },
 
-  async upload(file: File, category?: string, isPublic: boolean = false): Promise<FileItem> {
+  async upload(file: File, category?: string, isPublic: boolean = false, description?: string): Promise<FileItem> {
     const form = new FormData();
     form.append("file", file);
     if (category) form.append("category", category);
     if (isPublic) form.append("isPublic", String(isPublic));
+    if (typeof description === 'string' && description.length) form.append('description', description);
     const res = await fetch(`${API_PREFIX}/files`, {
       method: "POST",
       headers: { ...buildAuthHeaders() },
@@ -111,6 +113,17 @@ export const fileService = {
       headers: { "Content-Type": "application/json", ...buildAuthHeaders() },
       body: JSON.stringify({ isPublic }),
     });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    return data.file as FileItem;
+  },
+
+  async updateMeta(id: string, payload: { category?: string; isPublic?: boolean; description?: string }): Promise<FileItem> {
+    const res = await fetch(`${API_PREFIX}/files/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...buildAuthHeaders() },
+      body: JSON.stringify(payload),
+    })
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return data.file as FileItem;

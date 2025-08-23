@@ -9,9 +9,15 @@ async function requireAdmin(request: Request) {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (token) {
     const decoded = verifyToken(token);
-    if (!decoded) return { ok: false, res: NextResponse.json({ message: 'Invalid token' }, { status: 401 }) } as const;
-    if (decoded.role !== 'admin') return { ok: false, res: NextResponse.json({ message: 'Forbidden' }, { status: 403 }) } as const;
-    return { ok: true, user: decoded } as const;
+    if (decoded) {
+      if (decoded.role !== 'admin') return { ok: false, res: NextResponse.json({ message: 'Forbidden' }, { status: 403 }) } as const;
+      return { ok: true, user: decoded } as const;
+    }
+    // Bearer provided but invalid; attempt fallback to NextAuth cookie session
+    const nextAuthTokenFromBearerFail = await getToken({ req: request as any, secret: process.env.NEXTAUTH_SECRET });
+    if (!nextAuthTokenFromBearerFail) return { ok: false, res: NextResponse.json({ message: 'Invalid token' }, { status: 401 }) } as const;
+    if ((nextAuthTokenFromBearerFail as any).role !== 'admin') return { ok: false, res: NextResponse.json({ message: 'Forbidden' }, { status: 403 }) } as const;
+    return { ok: true, user: nextAuthTokenFromBearerFail } as const;
   }
 
   const nextAuthToken = await getToken({ req: request as any, secret: process.env.NEXTAUTH_SECRET });

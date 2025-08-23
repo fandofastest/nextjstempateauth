@@ -11,8 +11,13 @@ async function requireUser(request: Request) {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (token) {
     const decoded = verifyToken(token);
-    if (!decoded) return { ok: false, res: NextResponse.json({ message: 'Invalid token' }, { status: 401 }) } as const;
-    return { ok: true, user: decoded } as const;
+    if (decoded) {
+      return { ok: true, user: decoded } as const;
+    }
+    // Bearer provided but invalid; attempt fallback to NextAuth cookie session
+    const nextAuthTokenFromBearerFail = await getToken({ req: request as any, secret: process.env.NEXTAUTH_SECRET });
+    if (!nextAuthTokenFromBearerFail) return { ok: false, res: NextResponse.json({ message: 'Invalid token' }, { status: 401 }) } as const;
+    return { ok: true, user: nextAuthTokenFromBearerFail } as const;
   }
   const nextAuthToken = await getToken({ req: request as any, secret: process.env.NEXTAUTH_SECRET });
   if (!nextAuthToken) return { ok: false, res: NextResponse.json({ message: 'No token provided' }, { status: 401 }) } as const;
@@ -80,11 +85,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (!isAdmin && !isOwner) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
     const body = await request.json().catch(() => null);
-    // accept either { category, isPublic } or { file: { category, isPublic } }
+    // accept either { category, isPublic, description } or { file: { category, isPublic, description } }
     let incomingCategory = body ? (typeof body.category !== 'undefined' ? body.category : body?.file?.category) : undefined as any;
     let incomingIsPublic = body ? (typeof body.isPublic !== 'undefined' ? body.isPublic : body?.file?.isPublic) : undefined as any;
+    let incomingDescription = body ? (typeof body.description !== 'undefined' ? body.description : body?.file?.description) : undefined as any;
     if (typeof incomingCategory === 'string') incomingCategory = incomingCategory.trim();
     if (typeof incomingIsPublic !== 'undefined') incomingIsPublic = Boolean(incomingIsPublic);
+    if (typeof incomingDescription === 'string') incomingDescription = incomingDescription.trim();
 
     if (typeof incomingCategory !== 'undefined' && incomingCategory) {
       const exists = await CategoryModel.findOne({ name: incomingCategory });
@@ -100,6 +107,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     }
     if (typeof incomingIsPublic !== 'undefined') {
       update.$set = { ...(update.$set || {}), isPublic: Boolean(incomingIsPublic) };
+    }
+    if (typeof incomingDescription !== 'undefined') {
+      if (incomingDescription === '') {
+        update.$unset = { ...(update.$unset || {}), description: 1 };
+      } else {
+        update.$set = { ...(update.$set || {}), description: incomingDescription };
+      }
     }
     if (!update.$set && !update.$unset) {
       return NextResponse.json({ message: 'Nothing to update' }, { status: 400 });

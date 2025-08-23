@@ -63,6 +63,29 @@ export default function ApiTokenPage() {
     }
   };
 
+  const handleCopyBearer = async () => {
+    try {
+      await navigator.clipboard.writeText(token ? `Bearer ${token}` : "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.error("Copy failed", e);
+    }
+  };
+
+  const handleCopyWaBotEnv = async () => {
+    try {
+      const content = token
+        ? `APP_BASE_URL=http://localhost:3000\nSERVICE_BEARER=Bearer ${token}\n# OPTIONAL\n# GROUP_IDS=\n# INCLUDE_DMS=true\n# MAX_SIZE_MB=1024\n# PROCESSED_STORE=./data/processed.json\n# LOG_LEVEL=info\n`
+        : "APP_BASE_URL=http://localhost:3000\nSERVICE_BEARER=Bearer <PASTE_TOKEN_HERE>\n";
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.error("Copy failed", e);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -90,6 +113,21 @@ export default function ApiTokenPage() {
                 className={copied ? "border-green-500 text-green-600 dark:text-green-400" : undefined}
               >
                 {copied ? "Disalin" : "Salin"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!token}
+                onClick={handleCopyBearer}
+              >
+                Salin: Bearer Token
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopyWaBotEnv}
+              >
+                Salin .env wa-bot
               </Button>
               <Button
                 size="sm"
@@ -145,6 +183,7 @@ curl -s "http://localhost:3000/api/files?page=1&pageSize=20&q=invoice" \
             <section className="space-y-2">
               <h3 className="font-semibold text-gray-800 dark:text-gray-200">Upload File</h3>
               <p className="text-gray-700 dark:text-gray-300">Gunakan multipart/form-data field <code>file</code>. Batas ukuran mengikuti env <code>NEXT_PUBLIC_UPLOAD_MAX_SIZE_MB</code> / <code>UPLOAD_MAX_SIZE_MB</code>.</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">Catatan: Jika mengirim <code>category</code>, nilainya harus sudah ada di database (contoh: <code>foto</code>, <code>video</code>, <code>surat</code>, <code>media</code>), jika tidak akan balik 400.</p>
               <pre className="p-3 rounded bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 overflow-auto"><code>{`POST /api/files
 Authorization: Bearer <JWT>
 Content-Type: multipart/form-data
@@ -167,10 +206,15 @@ Form-Data:
     "updatedAt": "2025-01-01T00:00:00.000Z"
   }
 }`}</code></pre>
-              <pre className="p-3 rounded bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 overflow-auto"><code>{`# cURL upload
+              <pre className="p-3 rounded bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 overflow-auto"><code>{`# cURL upload (bash/zsh)
 curl -s -X POST http://localhost:3000/api/files \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@./dokumen.pdf"`}</code></pre>
+              <pre className="p-3 rounded bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 overflow-auto"><code>{`# cURL upload (PowerShell)
+$env:TOKEN = "<JWT>"
+curl.exe -s -X POST http://localhost:3000/api/files \
+  -H "Authorization: Bearer $env:TOKEN" \
+  -F "file=@.\\dokumen.pdf"`}</code></pre>
             </section>
 
             <section className="space-y-2">
@@ -236,6 +280,7 @@ Authorization: Bearer <JWT>
                 <li><b>POST</b> <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-white/10">/api/auth/logout</code> — Logout (client hapus token)</li>
                 <li><b>POST</b> <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-white/10">/api/auth/token</code> — Terbitkan token dari session login (NextAuth) atau Bearer</li>
               </ul>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Masa berlaku token: <b>7 hari</b>. Jika mendapat 401 "Invalid token", buat ulang token dari halaman ini.</p>
             </section>
 
             <section className="space-y-2">
