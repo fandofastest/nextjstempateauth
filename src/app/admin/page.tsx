@@ -1,12 +1,9 @@
 import { Metadata } from "next";
-import { EcommerceMetrics } from "@/components/ecommerce/EcommerceMetrics";
-import MonthlySalesChart from "@/components/ecommerce/MonthlySalesChart";
-import MonthlyTarget from "@/components/ecommerce/MonthlyTarget";
-import StatisticsChart from "@/components/ecommerce/StatisticsChart";
-import DemographicCard from "@/components/ecommerce/DemographicCard";
-import RecentOrders from "@/components/ecommerce/RecentOrders";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import dbConnect from "@/lib/db";
+import FileModel from "@/models/File";
+import CategoryModel from "@/models/Category";
 
 export const metadata: Metadata = {
   title: "Dashboard Admin | Malay Futsal",
@@ -15,54 +12,67 @@ export const metadata: Metadata = {
 
 export default async function AdminDashboard() {
   const session = await auth();
-
-  // Debugging log untuk session
-  console.log('Session in admin page:', JSON.stringify(session, null, 2));
-
-  // Redirect ke halaman login jika belum terautentikasi
   if (!session?.user) {
-    console.log('No session user found, redirecting to signin');
     redirect('/signin?callbackUrl=/admin');
   }
 
-  // Periksa apakah pengguna memiliki role admin
-  const user = session.user as { role?: string, email?: string };
-  console.log('User object in admin page:', user);
-  
-  if (user.role !== 'admin') {
-    console.log(`User role is ${user.role}, not admin. Redirecting to signin`);
-    // Redirect ke halaman login jika bukan admin
-    redirect('/signin');
-  }
-  
-  console.log('Admin access granted to:', user.email);
+  const userId = (session.user as any)?.id || (session.user as any)?._id;
+  await dbConnect();
+
+  const [
+    totalCategories,
+    myFiles,
+    myPrivateFiles,
+    totalPublicFiles,
+  ] = await Promise.all([
+    CategoryModel.countDocuments({}),
+    FileModel.countDocuments({ uploader: userId }),
+    FileModel.countDocuments({ uploader: userId, isPublic: false }),
+    FileModel.countDocuments({ isPublic: true }),
+  ]);
 
   return (
     <div className="p-4 sm:p-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-        Selamat Datang, {session.user.name || 'Admin'}
+        Ringkasan
       </h1>
-      
+
       <div className="grid grid-cols-12 gap-4 md:gap-6">
-        <div className="col-span-12 space-y-6 xl:col-span-7">
-          <EcommerceMetrics />
-          <MonthlySalesChart />
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-dark">
+            <div className="text-theme-xs text-gray-500">Total Kategori</div>
+            <div className="mt-2 text-2xl font-semibold">{totalCategories}</div>
+          </div>
         </div>
 
-        <div className="col-span-12 xl:col-span-5">
-          <MonthlyTarget />
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-dark">
+            <div className="text-theme-xs text-gray-500">File Saya</div>
+            <div className="mt-2 text-2xl font-semibold">{myFiles}</div>
+          </div>
         </div>
 
-        <div className="col-span-12 xl:col-span-7">
-          <StatisticsChart />
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-dark">
+            <div className="text-theme-xs text-gray-500">Private (Saya)</div>
+            <div className="mt-2 text-2xl font-semibold">{myPrivateFiles}</div>
+          </div>
         </div>
 
-        <div className="col-span-12 xl:col-span-5">
-          <DemographicCard />
+        <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-dark">
+            <div className="text-theme-xs text-gray-500">Public (Semua)</div>
+            <div className="mt-2 text-2xl font-semibold">{totalPublicFiles}</div>
+          </div>
         </div>
+      </div>
 
+      {/* Placeholder area to keep admin template feel; can be expanded later */}
+      <div className="mt-6 grid grid-cols-12 gap-4 md:gap-6">
         <div className="col-span-12">
-          <RecentOrders />
+          <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-dark dark:text-gray-300">
+            Gunakan menu di sidebar untuk mengelola file, kategori, dan lainnya.
+          </div>
         </div>
       </div>
     </div>

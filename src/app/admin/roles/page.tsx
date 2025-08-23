@@ -2,7 +2,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import RoleTable from "@/components/tables/RoleTable";
 import { Metadata } from "next";
-import React from "react";
+import RolesActions from "@/components/roles/RolesActions";
 
 export const metadata: Metadata = {
   title: "Roles | CAT System",
@@ -14,7 +14,7 @@ export default function RolesPage() {
     <div>
       <div className="flex items-center justify-between">
         <PageBreadcrumb pageTitle="Roles" />
-        {/* Tambahkan tombol AddRoleButton di sini jika sudah ada */}
+        <RolesActions />
       </div>
       <div className="space-y-6">
         <ComponentCard title="Role List">
@@ -23,4 +23,4 @@ export default function RolesPage() {
       </div>
     </div>
   );
-} 
+}

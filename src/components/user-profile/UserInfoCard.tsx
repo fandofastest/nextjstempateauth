@@ -1,17 +1,98 @@
 "use client";
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useModal } from "../../hooks/useModal";
 import { Modal } from "../ui/modal";
 import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
+import { useSession } from "next-auth/react";
+
+function buildAuthHeaders(): HeadersInit {
+  if (typeof window === "undefined") return {} as HeadersInit;
+  const token = localStorage.getItem("token");
+  return token ? ({ Authorization: `Bearer ${token}` } as HeadersInit) : ({} as HeadersInit);
+}
+
+type MeUser = {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt?: string;
+};
 
 export default function UserInfoCard() {
   const { isOpen, openModal, closeModal } = useModal();
-  const handleSave = () => {
-    // Handle save logic here
-    console.log("Saving changes...");
-    closeModal();
+  const { data: session } = useSession();
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [me, setMe] = useState<MeUser | null>(null);
+
+  // form state
+  const [name, setName] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const email = useMemo(() => me?.email || session?.user?.email || "", [me, session]);
+
+  const fetchMe = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch("/api/me", { headers: { ...buildAuthHeaders() } });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setMe(data.user as MeUser);
+      setName(data.user?.name || "");
+    } catch (e: any) {
+      setError(e?.message || "Failed to load profile");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMe();
+  }, [fetchMe]);
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      if (newPassword || confirmPassword || currentPassword) {
+        if (!currentPassword || !newPassword || !confirmPassword) {
+          setError("Lengkapi semua kolom password");
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          setError("Konfirmasi password tidak cocok");
+          return;
+        }
+      }
+      const body: any = { name: name?.trim() };
+      if (currentPassword && newPassword) {
+        body.currentPassword = currentPassword;
+        body.newPassword = newPassword;
+      }
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...buildAuthHeaders() },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await fetchMe();
+      // reset password fields
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      closeModal();
+    } catch (e: any) {
+      setError(e?.message || "Gagal menyimpan perubahan");
+    } finally {
+      setLoading(false);
+    }
   };
   return (
     <div className="p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6">
@@ -24,19 +105,19 @@ export default function UserInfoCard() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 2xl:gap-x-32">
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                First Name
+                Name
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Musharof
+                {me?.name || session?.user?.name || "-"}
               </p>
             </div>
 
             <div>
               <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
-                Last Name
+                Role
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Chowdhury
+                {me?.role || (session as any)?.user?.role || "-"}
               </p>
             </div>
 
@@ -45,7 +126,7 @@ export default function UserInfoCard() {
                 Email address
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                randomuser@pimjo.com
+                {email}
               </p>
             </div>
 
@@ -54,7 +135,7 @@ export default function UserInfoCard() {
                 Phone
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                +09 363 398 46
+                -
               </p>
             </div>
 
@@ -63,7 +144,7 @@ export default function UserInfoCard() {
                 Bio
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-                Team Manager
+                -
               </p>
             </div>
           </div>
@@ -102,83 +183,52 @@ export default function UserInfoCard() {
               Update your details to keep your profile up-to-date.
             </p>
           </div>
-          <form className="flex flex-col">
+          <form className="flex flex-col" onSubmit={(e)=>{e.preventDefault(); handleSave();}}>
             <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
-              <div>
+              <div className="mt-2">
                 <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Social Links
+                  Personal Information
                 </h5>
-
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
-                  <div>
-                    <Label>Facebook</Label>
-                    <Input
-                      type="text"
-                      defaultValue="https://www.facebook.com/PimjoHQ"
-                    />
+                  <div className="col-span-2">
+                    <Label>Name</Label>
+                    <Input type="text" value={name} onChange={(e)=>setName(e.target.value)} />
                   </div>
-
-                  <div>
-                    <Label>X.com</Label>
-                    <Input type="text" defaultValue="https://x.com/PimjoHQ" />
-                  </div>
-
-                  <div>
-                    <Label>Linkedin</Label>
-                    <Input
-                      type="text"
-                      defaultValue="https://www.linkedin.com/company/pimjo"
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Instagram</Label>
-                    <Input
-                      type="text"
-                      defaultValue="https://instagram.com/PimjoHQ"
-                    />
+                  <div className="col-span-2">
+                    <Label>Email (read-only)</Label>
+                    <Input type="text" value={email} disabled />
                   </div>
                 </div>
               </div>
               <div className="mt-7">
                 <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Personal Information
+                  Change Password
                 </h5>
-
                 <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>First Name</Label>
-                    <Input type="text" defaultValue="Musharof" />
+                    <Label>Current Password</Label>
+                    <Input type="password" value={currentPassword} onChange={(e)=>setCurrentPassword(e.target.value)} />
                   </div>
-
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Last Name</Label>
-                    <Input type="text" defaultValue="Chowdhury" />
+                    <Label>New Password</Label>
+                    <Input type="password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} />
                   </div>
-
                   <div className="col-span-2 lg:col-span-1">
-                    <Label>Email Address</Label>
-                    <Input type="text" defaultValue="randomuser@pimjo.com" />
-                  </div>
-
-                  <div className="col-span-2 lg:col-span-1">
-                    <Label>Phone</Label>
-                    <Input type="text" defaultValue="+09 363 398 46" />
-                  </div>
-
-                  <div className="col-span-2">
-                    <Label>Bio</Label>
-                    <Input type="text" defaultValue="Team Manager" />
+                    <Label>Confirm New Password</Label>
+                    <Input type="password" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} />
                   </div>
                 </div>
               </div>
+              {error && (
+                <p className="mt-4 text-sm text-red-600">{error}</p>
+              )}
             </div>
             <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
-              <Button size="sm" variant="outline" onClick={closeModal}>
+              <Button size="sm" variant="outline" type="button" onClick={closeModal}>
                 Close
               </Button>
-              <Button size="sm" onClick={handleSave}>
-                Save Changes
+              <Button size="sm" type="submit" disabled={loading}>
+                {loading ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
           </form>

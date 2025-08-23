@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
+import { useSession } from "next-auth/react";
 import {
   BoxCubeIcon,
   ChevronDownIcon,
@@ -29,27 +30,12 @@ const navItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Dashboard",
-    path: "/admin/dashboard",
+    path: "/admin",
   },
   {
-    icon: <TableIcon />,
-    name: "Exams",
-    path: "/admin/exams",
-  },
-  {
-    icon: <ListIcon />,
-    name: "Questions",
-    path: "/admin/questions",
-  },
-  {
-    icon: <PieChartIcon />,
-    name: "Results",
-    path: "/admin/results",
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "Analytics",
-    path: "/admin/analytics",
+    icon: <PageIcon />,
+    name: "Files",
+    path: "/admin/files",
   },
 ];
 
@@ -69,6 +55,8 @@ const othersItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role as string | undefined;
 
   const renderMenuItems = (
     navItems: NavItem[],
@@ -291,22 +279,24 @@ const AppSidebar: React.FC = () => {
               {renderMenuItems(navItems, "main")}
             </div>
 
-            <div className="">
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(othersItems, "others")}
-            </div>
+            {role === 'admin' && (
+              <div className="">
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "lg:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Others"
+                  ) : (
+                    <HorizontaLDots />
+                  )}
+                </h2>
+                {renderMenuItems(othersItems, "others")}
+              </div>
+            )}
           </div>
         </nav>
         {/* {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null} */}
@@ -314,5 +304,4 @@ const AppSidebar: React.FC = () => {
     </aside>
   );
 };
-
 export default AppSidebar;

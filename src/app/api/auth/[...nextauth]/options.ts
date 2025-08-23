@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { compare } from "bcryptjs";
 import dbConnect from "@/lib/db";
 import User from "@/models/User";
@@ -50,19 +51,63 @@ export const nextAuthOptions: NextAuthOptions = {
             name: user.name,
             email: user.email,
             role: user.role,
-          };
+          } as any;
         } catch (error) {
           console.error("Authentication error:", error);
           throw new Error("Terjadi kesalahan saat mencoba masuk");
         }
       },
     }),
+    // Google OAuth provider
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      allowDangerousEmailAccountLinking: true,
+    }),
   ],
   callbacks: {
+    // Ensure user exists for OAuth and map DB role/id onto token
+    async signIn({ user, account }) {
+      try {
+        if (account?.provider === 'google') {
+          await dbConnect();
+          if (!user?.email) return false;
+          let existing = await User.findOne({ email: user.email });
+          if (!existing) {
+            existing = new User({
+              name: user.name || user.email.split('@')[0],
+              email: user.email,
+              role: 'customer',
+              // passwordHash left undefined for OAuth users
+            });
+            await existing.save();
+          }
+        }
+        return true;
+      } catch (e) {
+        console.error('signIn callback error:', e);
+        return false;
+      }
+    },
     async jwt({ token, user }) {
+      // When user signs in (credentials or OAuth), attach DB role/id
       if (user) {
-        token.role = user.role;
-        token.id = user.id;
+        try {
+          await dbConnect();
+          const email = (user as any).email || token.email;
+          if (email) {
+            const dbUser = await User.findOne({ email });
+            if (dbUser) {
+              token.role = dbUser.role as any;
+              token.id = dbUser._id.toString();
+            }
+          }
+        } catch (e) {
+          console.error('jwt callback lookup error:', e);
+          // fallback to any role/id passed by provider
+          if ((user as any).role) token.role = (user as any).role;
+          if ((user as any).id) token.id = (user as any).id;
+        }
       }
       return token;
     },

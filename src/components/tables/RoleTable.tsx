@@ -8,7 +8,7 @@ import {
   TableRow,
 } from "../ui/table";
 import Badge from "../ui/badge/Badge";
-import { roleService } from "@/services/roleService";
+import { roleService } from "../../services/roleService";
 import type { RoleUser } from "@/types/RoleUser";
 import Button from "../ui/button/Button";
 import ConfirmModal from "../mycomponent/modal/ConfirmModal";
@@ -27,6 +27,15 @@ export default function RoleTable() {
 
   useEffect(() => {
     fetchRoles();
+    const onRefresh = () => fetchRoles();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('roles:refresh', onRefresh);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('roles:refresh', onRefresh);
+      }
+    };
   }, []);
 
   const fetchRoles = async () => {
@@ -69,25 +78,25 @@ export default function RoleTable() {
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  Name
+                  Nama Role
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  Permissions
+                  Hak Akses
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  Created At
+                  Dibuat
                 </TableCell>
                 <TableCell
                   isHeader
                   className="px-5 py-3 font-medium text-gray-500 text-start text-theme-xs dark:text-gray-400"
                 >
-                  Actions
+                  Aksi
                 </TableCell>
               </TableRow>
             </TableHeader>
@@ -95,7 +104,7 @@ export default function RoleTable() {
               {roles.length === 0 ? (
                 <TableRow>
                   <td colSpan={4} className="py-8 text-center text-gray-400 dark:text-gray-500">
-                    No roles found
+                    Belum ada role
                   </td>
                 </TableRow>
               ) : (
@@ -110,7 +119,7 @@ export default function RoleTable() {
                       <div className="flex flex-wrap gap-1">
                         {role.permissions.map((permission, index) => (
                           <Badge key={index} size="sm" color="info">
-                            {permission.replace('_', ' ')}
+                            {permission.replace(/_/g, ' ')}
                           </Badge>
                         ))}
                       </div>
@@ -123,17 +132,18 @@ export default function RoleTable() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="dark:bg-gray-800 dark:text-gray-200"
                           onClick={() => setRoleToEdit(role)}
                         >
-                          Edit
+                          Ubah
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-error-500 border-error-500"
+                          className="text-error-600 ring-error-500 dark:text-error-400 dark:ring-error-600"
                           onClick={() => setRoleToDelete(role)}
                         >
-                          Delete
+                          Hapus
                         </Button>
                       </div>
                     </TableCell>
@@ -150,10 +160,10 @@ export default function RoleTable() {
         isOpen={!!roleToDelete}
         onClose={() => setRoleToDelete(null)}
         onConfirm={handleDelete}
-        title="Delete Role"
-        description={roleToDelete ? `Are you sure you want to delete role "${roleToDelete.name}"? This action cannot be undone.` : ''}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title="Hapus Role"
+        description={roleToDelete ? `Yakin ingin menghapus role "${roleToDelete.name}"? Tindakan ini tidak dapat dibatalkan.` : ''}
+        confirmText="Hapus"
+        cancelText="Batal"
         loading={deleting}
       />
 

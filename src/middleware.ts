@@ -8,20 +8,38 @@ export default withAuth(
   function middleware(req) {
     // Log untuk debugging
     console.log('Middleware running for path:', req.nextUrl.pathname);
+    const url = req.nextUrl;
+    const token = (req as any).nextauth?.token as any;
+
+    // Jika user sudah login tapi bukan admin dan mencoba akses /admin,
+    // izinkan akses khusus ke /admin/files untuk fitur upload.
+    if (url.pathname.startsWith('/admin')) {
+      const role = token?.role;
+      if (role && role !== 'admin') {
+        // Allow customers to access admin root and files module
+        if (url.pathname === '/admin' || url.pathname.startsWith('/admin/files')) {
+          return NextResponse.next();
+        }
+        url.pathname = '/';
+        return NextResponse.redirect(url);
+      }
+    }
+
     return NextResponse.next();
   },
   {
     callbacks: {
-      // Hanya izinkan akses jika pengguna memiliki token dan token memiliki role admin
+      // Izinkan semua user yang memiliki token untuk melewati middleware function di atas.
+      // Pembatasan akses admin dilakukan via redirect eksplisit.
       authorized: ({ token, req }) => {
-        console.log('Token in middleware:', token); // Log the token for debugging
-        
-        // Cek token & role, tetapi lebih permisif dengan konsole log detail
-        const isAuthorized = !!token && token.role === 'admin';
-        console.log('Is authorized:', isAuthorized, 'Role:', token?.role);
-        
-        return isAuthorized;
-      }
+        const ok = !!token;
+        if (!ok) {
+          console.log('No token in middleware, redirecting to signIn');
+        } else {
+          console.log('Token in middleware:', token);
+        }
+        return ok;
+      },
     },
     pages: {
       // Jika tidak terautentikasi, redirect ke halaman signin

@@ -6,7 +6,7 @@ const SALT_WORK_FACTOR = 10;
 export interface IUser extends Document {
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
   role: 'customer' | 'admin';
   createdAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -22,7 +22,8 @@ const UserSchema: Schema = new Schema({
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address.']
   },
-  passwordHash: { type: String, required: true },
+  // Optional for OAuth users (e.g., Google). Credentials flow will enforce presence separately.
+  passwordHash: { type: String, required: false },
   role: { 
     type: String, 
     enum: ['customer', 'admin'],
@@ -41,7 +42,7 @@ UserSchema.pre<IUser>('save', async function(next) {
     // Generate a salt
     const salt = await bcrypt.genSalt(SALT_WORK_FACTOR);
     // Hash the password using our new salt
-    const hash = await bcrypt.hash(this.passwordHash, salt);
+    const hash = await bcrypt.hash(this.passwordHash || '', salt);
     // Override the cleartext password with the hashed one
     this.passwordHash = hash;
     next();
@@ -52,6 +53,8 @@ UserSchema.pre<IUser>('save', async function(next) {
 
 // Method to compare password for login
 UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+  // If no passwordHash (OAuth user), always fail password comparison
+  if (!this.passwordHash) return false;
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 

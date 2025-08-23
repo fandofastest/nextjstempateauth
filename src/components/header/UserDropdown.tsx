@@ -9,6 +9,7 @@ import { signOut, useSession } from "next-auth/react";
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const { data: session } = useSession();
+  const role = (session?.user as any)?.role as string | undefined;
 
 function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
   e.stopPropagation();
@@ -115,6 +116,33 @@ function toggleDropdown(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
               Edit profile
             </DropdownItem>
           </li>
+          {role === 'admin' && (
+            <li>
+              <DropdownItem
+                onItemClick={closeDropdown}
+                tag="a"
+                href="/admin/api-token"
+                className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M7 10.5C7 8.567 8.567 7 10.5 7C12.433 7 14 8.567 14 10.5C14 10.8393 13.9559 11.1663 13.8738 11.4751L19 16.6013V19H16.6013L11.4751 13.8738C11.1663 13.9559 10.8393 14 10.5 14C8.567 14 7 12.433 7 10.5ZM10.5 8.5C9.39543 8.5 8.5 9.39543 8.5 10.5C8.5 11.6046 9.39543 12.5 10.5 12.5C11.6046 12.5 12.5 11.6046 12.5 10.5C12.5 9.39543 11.6046 8.5 10.5 8.5Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                API Token
+              </DropdownItem>
+            </li>
+          )}
           <li>
             <DropdownItem
               onItemClick={closeDropdown}

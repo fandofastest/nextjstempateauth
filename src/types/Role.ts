@@ -1,10 +1,11 @@
 export type Permission = 
   | 'manage_users'
-  | 'manage_exams'
-  | 'manage_questions'
-  | 'view_results'
-  | 'take_exams'
-  | 'view_own_results';
+  | 'manage_files'
+  | 'upload_files'
+  | 'download_files'
+  | 'manage_folders'
+  | 'share_files'
+  | 'view_audit_logs';
 
 export interface Role {
   _id: string;

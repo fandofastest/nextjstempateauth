@@ -2,15 +2,7 @@
 import React, { useState } from "react";
 import { Modal } from "../../ui/modal";
 import Button from "../../ui/button/Button";
-import type { RoleUser } from "@/types/RoleUser";
 import { roleService } from "@/services/roleService";
-
-interface EditRoleModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-  role: RoleUser | null;
-}
 
 const allPermissions = [
   "manage_users",
@@ -22,24 +14,20 @@ const allPermissions = [
   "view_audit_logs",
 ];
 
-export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: EditRoleModalProps) {
+interface AddRoleModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export default function AddRoleModal({ isOpen, onClose, onSuccess }: AddRoleModalProps) {
   const [form, setForm] = useState({
-    name: role?.name || "",
-    description: role?.description || "",
-    permissions: role?.permissions || [],
+    name: "",
+    description: "",
+    permissions: [] as string[],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (role) {
-      setForm({
-        name: role.name,
-        description: role.description,
-        permissions: role.permissions,
-      });
-    }
-  }, [role]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -56,15 +44,21 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role) return;
     setLoading(true);
     setError(null);
     try {
-      await roleService.updateRole(role._id, form);
-      onSuccess();
+      await roleService.createRole(form);
+      // optional callback
+      onSuccess?.();
+      // notify listeners to refresh
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("roles:refresh"));
+      }
+      // reset and close
+      setForm({ name: "", description: "", permissions: [] });
       onClose();
     } catch (err: any) {
-      setError(err?.message || "Failed to update role");
+      setError(err?.message || "Failed to create role");
     } finally {
       setLoading(false);
     }
@@ -72,7 +66,7 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-[400px] p-5  border border-gray-200 dark:border-gray-800">
-      <h4 className="mb-4 text-lg font-medium text-gray-800 dark:text-white/90">Edit Role</h4>
+      <h4 className="mb-4 text-lg font-medium text-gray-800 dark:text-white/90">Add Role</h4>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-white/90">Name</label>
@@ -112,14 +106,14 @@ export default function EditRoleModal({ isOpen, onClose, onSuccess, role }: Edit
         </div>
         {error && <div className="text-error-500 text-sm">{error}</div>}
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
+          <Button variant="outline" onClick={onClose} disabled={loading} type="button">
             Cancel
           </Button>
-          <Button variant="primary" disabled={loading}>
+          <Button variant="primary" disabled={loading} type="submit">
             {loading ? "Saving..." : "Save"}
           </Button>
         </div>
       </form>
     </Modal>
   );
-} 
+}
