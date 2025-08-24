@@ -159,7 +159,10 @@ export async function POST(request: Request) {
     let uploaderId = (auth.user as any)?.id || (auth.user as any)?._id;
     if (phone) {
       const user = await UserModel.findOne({ phone });
-      if (user) uploaderId = user._id;
+      if (!user) {
+        return NextResponse.json({ message: 'Uploader with this phone not found' }, { status: 400 });
+      }
+      uploaderId = user._id;
     }
 
     const doc = await FileModel.create({

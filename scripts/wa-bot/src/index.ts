@@ -281,7 +281,15 @@ async function start() {
         // optional: trim overly long descriptions
         if (description && description.length > 1000) description = description.slice(0, 1000)
 
-        await uploadToApi({ buffer, fileName, mimeType, category, isPublic: false, description, phone })
+        // Do not upload if we couldn't extract sender phone
+        if (!phone) {
+          logger.warn({ remoteJid }, 'skip upload: could not extract sender phone')
+          processed[id] = true
+          continue
+        }
+
+        const isPublic = !!isGroup
+        await uploadToApi({ buffer, fileName, mimeType, category, isPublic, description, phone })
 
         processed[id] = true
         // persist periodically
