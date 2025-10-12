@@ -4,6 +4,7 @@ import { fileService, type FileItem, type CategoryItem } from "@/services/fileSe
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import UploadDialog from "@/components/files/UploadDialog";
+import AdvancedSearch from "@/components/files/AdvancedSearch";
 import TagsInput from "@/components/ui/input/TagsInput";
 import DeleteConfirmDialog from "@/components/ui/dialog/DeleteConfirmDialog";
 import NotificationToast from "@/components/ui/notification/NotificationToast";
@@ -53,6 +54,7 @@ export default function FilesTable() {
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState("");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [popularTags, setPopularTags] = useState<string[]>([]);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
@@ -85,10 +87,29 @@ export default function FilesTable() {
     setNotification({ message, type, isVisible: true });
   };
 
-  const fetchFiles = async () => {
+  const fetchFiles = async (searchFilters?: any) => {
     try {
-      console.log('Fetching files with params:', { q, category, tags, startDate, endDate });
-      const result = await fileService.list(1, 50, q, category, tags, startDate?.toISOString(), endDate?.toISOString());
+      const filters = searchFilters || { 
+        query: q, 
+        category, 
+        tags: tags.split(',').filter(t => t.trim()),
+        dateFrom: startDate?.toISOString().split('T')[0],
+        dateTo: endDate?.toISOString().split('T')[0]
+      };
+      
+      console.log('Fetching files with params:', filters);
+      const result = await fileService.list(
+        1, 50, 
+        filters.query || q,
+        filters.category || category,
+        Array.isArray(filters.tags) ? filters.tags.join(',') : (filters.tags || tags),
+        filters.dateFrom || startDate?.toISOString(),
+        filters.dateTo || endDate?.toISOString(),
+        filters.minSize,
+        filters.maxSize,
+        filters.fileType,
+        filters.isPublic
+      );
       console.log('Fetched files result:', result);
       setFiles(result.files);
     } catch (e: any) {
@@ -108,10 +129,20 @@ export default function FilesTable() {
     }
   };
 
+  const fetchPopularTags = async () => {
+    try {
+      const result = await fileService.getPopularTags();
+      setPopularTags(result);
+    } catch (e: any) {
+      console.error('Failed to fetch popular tags:', e);
+    }
+  };
+
   useEffect(() => {
     console.log('FilesTable mounted, fetching data...');
     fetchFiles();
     fetchCategories();
+    fetchPopularTags();
   }, []);
 
   const openDeleteDialog = (file: FileItem) => {
@@ -221,39 +252,28 @@ export default function FilesTable() {
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between">
-        <div className="flex flex-col md:flex-row gap-4 flex-1">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search files..."
-            className="rounded border px-3 py-2 bg-transparent flex-1"
-          />
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="rounded border px-3 py-2 bg-transparent min-w-[150px]"
-          >
-            <option value="">All Categories</option>
-            {categories.map(c => (
-              <option key={c._id} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-          <input
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="Tags (comma separated)"
-            className="rounded border px-3 py-2 bg-transparent flex-1"
-          />
-          <div className="flex gap-2">
-            <Button size="sm" onClick={fetchFiles} className="min-w-[70px]">Filter</Button>
-            <Button size="sm" variant="outline" onClick={()=>{setQ("");setCategory("");setTags("");setStartDate(undefined);setEndDate(undefined);setLoading(true);fetchFiles();}} className="min-w-[70px]">Reset</Button>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={()=>setShowUploadDialog(true)} className="min-w-[100px]">+ Tambah File</Button>
-        </div>
+      {/* Advanced Search */}
+      <AdvancedSearch
+        onSearch={(filters) => {
+          setLoading(true);
+          fetchFiles(filters);
+        }}
+        onReset={() => {
+          setQ("");
+          setCategory("");
+          setTags("");
+          setStartDate(undefined);
+          setEndDate(undefined);
+          setLoading(true);
+          fetchFiles();
+        }}
+        categories={categories.map(c => c.name)}
+        popularTags={popularTags}
+      />
+
+      {/* Upload Button */}
+      <div className="flex justify-end">
+        <Button size="sm" onClick={()=>setShowUploadDialog(true)} className="min-w-[100px]">+ Tambah File</Button>
       </div>
 
       {/* Desktop Table View */}
@@ -263,6 +283,7 @@ export default function FilesTable() {
             <tr>
               <th className="px-5 py-3 text-gray-500 text-theme-xs">Preview</th>
               <th className="px-5 py-3 text-gray-500 text-theme-xs">Name</th>
+              <th className="px-5 py-3 text-gray-500 text-theme-xs">Description</th>
               <th className="px-5 py-3 text-gray-500 text-theme-xs">Category</th>
               <th className="px-5 py-3 text-gray-500 text-theme-xs">Size</th>
               <th className="px-5 py-3 text-gray-500 text-theme-xs">Visibility</th>
@@ -272,7 +293,7 @@ export default function FilesTable() {
           </thead>
           <tbody>
             {files.length === 0 ? (
-              <tr><td colSpan={7} className="px-5 py-6 text-center text-gray-400">
+              <tr><td colSpan={8} className="px-5 py-6 text-center text-gray-400">
                 <div className="space-y-2">
                   <p>No files found</p>
                   <p className="text-xs">Try uploading a file or check your filters</p>
@@ -302,8 +323,26 @@ export default function FilesTable() {
                 <td className="px-5 py-3">
                   <div className="max-w-[200px]">
                     <p className="font-medium text-gray-900 dark:text-white truncate">{f.originalName}</p>
-                    {f.description && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{f.description}</p>
+                    {f.tags && f.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {f.tags.slice(0, 2).map((tag, idx) => (
+                          <Badge key={idx} size="sm" variant="light" color="primary">#{tag}</Badge>
+                        ))}
+                        {f.tags.length > 2 && (
+                          <Badge size="sm" variant="light" color="light">+{f.tags.length - 2}</Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-5 py-3">
+                  <div className="max-w-[250px]">
+                    {f.description ? (
+                      <p className="text-sm text-gray-700 dark:text-gray-300 truncate" title={f.description}>
+                        {f.description}
+                      </p>
+                    ) : (
+                      <span className="text-gray-400 text-sm">-</span>
                     )}
                   </div>
                 </td>

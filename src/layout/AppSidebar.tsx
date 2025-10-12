@@ -33,6 +33,11 @@ const navItems: NavItem[] = [
     path: "/user",
   },
   {
+    icon: <PieChartIcon />,
+    name: "Analytics",
+    path: "/user/dashboard",
+  },
+  {
     icon: <PageIcon />,
     name: "Files",
     path: "/user/files",

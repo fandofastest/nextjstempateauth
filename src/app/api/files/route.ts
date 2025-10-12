@@ -50,6 +50,10 @@ export async function GET(request: Request) {
     const tags = url.searchParams.get('tags') || '';
     const startDate = url.searchParams.get('startDate'); // ISO date
     const endDate = url.searchParams.get('endDate'); // ISO date
+    const minSize = url.searchParams.get('minSize'); // in MB
+    const maxSize = url.searchParams.get('maxSize'); // in MB
+    const fileType = url.searchParams.get('fileType') || '';
+    const isPublic = url.searchParams.get('isPublic');
 
     const andClauses: any[] = [];
     if (q) {
@@ -98,6 +102,56 @@ export async function GET(request: Request) {
         if (!isNaN(end.getTime())) createdAt.$lte = end;
       }
       if (Object.keys(createdAt).length > 0) andClauses.push({ createdAt });
+    }
+
+    // File size filter (convert MB to bytes)
+    if (minSize || maxSize) {
+      const sizeFilter: any = {};
+      if (minSize) {
+        const minBytes = parseFloat(minSize) * 1024 * 1024;
+        if (!isNaN(minBytes)) sizeFilter.$gte = minBytes;
+      }
+      if (maxSize) {
+        const maxBytes = parseFloat(maxSize) * 1024 * 1024;
+        if (!isNaN(maxBytes)) sizeFilter.$lte = maxBytes;
+      }
+      if (Object.keys(sizeFilter).length > 0) andClauses.push({ size: sizeFilter });
+    }
+
+    // File type filter
+    if (fileType) {
+      switch (fileType) {
+        case 'image':
+          andClauses.push({ mimeType: { $regex: /^image\// } });
+          break;
+        case 'video':
+          andClauses.push({ mimeType: { $regex: /^video\// } });
+          break;
+        case 'pdf':
+          andClauses.push({ mimeType: { $regex: /^application\/pdf/ } });
+          break;
+        case 'document':
+          andClauses.push({ 
+            mimeType: { 
+              $regex: /^application\/(msword|vnd\.openxmlformats-officedocument\.wordprocessingml\.document|vnd\.ms-excel|vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|vnd\.ms-powerpoint|vnd\.openxmlformats-officedocument\.presentationml\.presentation)/ 
+            } 
+          });
+          break;
+        case 'other':
+          andClauses.push({ 
+            mimeType: { 
+              $not: { 
+                $regex: /^(image\/|video\/|application\/(pdf|msword|vnd\.openxmlformats-officedocument|vnd\.ms-))/ 
+              } 
+            } 
+          });
+          break;
+      }
+    }
+
+    // Visibility filter
+    if (isPublic !== null && isPublic !== undefined) {
+      andClauses.push({ isPublic: isPublic === 'true' });
     }
 
     // if not admin, list own files OR public files

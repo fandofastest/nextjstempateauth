@@ -38,7 +38,11 @@ export const fileService = {
     category = "",
     tags = "",
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    minSize?: string,
+    maxSize?: string,
+    fileType?: string,
+    isPublic?: string
   ): Promise<{ files: FileItem[]; total: number; page: number; pageSize: number }> {
     const url = new URL(`${API_PREFIX}/files`, window.location.origin);
     url.searchParams.set("page", String(page));
@@ -48,6 +52,10 @@ export const fileService = {
     if (tags) url.searchParams.set("tags", tags);
     if (startDate) url.searchParams.set("startDate", startDate);
     if (endDate) url.searchParams.set("endDate", endDate);
+    if (minSize) url.searchParams.set("minSize", minSize);
+    if (maxSize) url.searchParams.set("maxSize", maxSize);
+    if (fileType) url.searchParams.set("fileType", fileType);
+    if (isPublic) url.searchParams.set("isPublic", isPublic);
     const res = await fetch(url.toString(), { headers: { ...buildAuthHeaders() } });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
@@ -131,6 +139,26 @@ export const fileService = {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return data.file as FileItem;
+  },
+
+  async getPopularTags(): Promise<string[]> {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/analytics?period=30d', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.tagStats?.map((tag: any) => tag._id) || [];
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching popular tags:', error);
+      return [];
+    }
   },
 };
 

@@ -156,13 +156,12 @@ async function uploadToApi(opts) {
         if (!res.ok) {
             const text2 = res.body ? (await res.text().catch(() => text)) : text;
             logger.error({ status: res.status, text: text2 }, 'upload failed');
-            return;
+            return null;
         }
     }
-    else {
-        const json = await res.json().catch(() => ({}));
-        logger.info({ file: json?.file || {}, tags: tags || [] }, 'uploaded');
-    }
+    const json = await res.json().catch(() => ({}));
+    logger.info({ file: json?.file || {}, tags: tags || [] }, 'uploaded');
+    return json?.file || null;
 }
 const makeWASocket = baileys.makeWASocket || baileys.default;
 const { useMultiFileAuthState, fetchLatestBaileysVersion, downloadMediaMessage } = baileys;
@@ -208,6 +207,10 @@ async function start() {
     sock.ev.on('messages.upsert', async (m) => {
         try {
             logger.trace({ messageCount: m.messages.length }, 'Received messages batch');
+            // Group messages by sender and timestamp for batch processing
+            const mediaMessages = [];
+            let sharedDescription = '';
+            let sharedTags = [];
             for (const msg of m.messages) {
                 const id = msg?.key?.id;
                 if (!id || processed[id])
@@ -253,82 +256,133 @@ async function start() {
                     processed[id] = true;
                     continue;
                 }
-                logger.info({ remoteJid, hasMedia }, 'Processing media message');
-                // download
-                const buffer = await downloadMediaMessage(msg, 'buffer', {});
-                // derive filename and mime
-                let fileName = 'wa-media';
-                let mimeType = 'application/octet-stream';
-                if (content.imageMessage) {
-                    fileName = content.imageMessage?.fileName || `image-${Date.now()}.jpg`;
-                    mimeType = content.imageMessage?.mimetype || 'image/jpeg';
-                }
-                else if (content.videoMessage) {
-                    fileName = content.videoMessage?.fileName || `video-${Date.now()}.mp4`;
-                    mimeType = content.videoMessage?.mimetype || 'video/mp4';
-                }
-                else if (content.documentMessage) {
-                    fileName = content.documentMessage?.fileName || `document-${Date.now()}`;
-                    mimeType = content.documentMessage?.mimetype || 'application/octet-stream';
-                }
-                else if (content.audioMessage) {
-                    fileName = `audio-${Date.now()}.ogg`;
-                    mimeType = content.audioMessage?.mimetype || 'audio/ogg';
-                }
-                else if (content.stickerMessage) {
-                    fileName = `sticker-${Date.now()}.webp`;
-                    mimeType = 'image/webp';
-                }
-                const category = mapCategory(mimeType, fileName);
-                // determine sender phone (group: participant; dm: remoteJid)
-                const senderJid = (msg.key?.participant) || remoteJid || '';
-                let phone = undefined;
-                if (senderJid) {
-                    const num = String(senderJid).split('@')[0] || '';
-                    const digits = num.replace(/\D/g, '');
-                    if (digits.length >= 8 && digits.length <= 15) {
-                        phone = `+${digits}`;
+                // Extract description and tags from any message that has caption/text
+                if (!sharedDescription) {
+                    let description = '';
+                    if (content.imageMessage?.caption)
+                        description = content.imageMessage.caption;
+                    else if (content.videoMessage?.caption)
+                        description = content.videoMessage.caption;
+                    else if (content.documentMessage?.caption)
+                        description = content.documentMessage.caption;
+                    else if (content.conversation)
+                        description = content.conversation;
+                    else if (content.extendedTextMessage?.text)
+                        description = content.extendedTextMessage.text;
+                    if (description) {
+                        // optional: trim overly long descriptions
+                        if (description.length > 1000)
+                            description = description.slice(0, 1000);
+                        // Extract tags from description (look for #hashtags)
+                        const hashtagRegex = /#(\w+)/g;
+                        const matches = description.match(hashtagRegex);
+                        if (matches) {
+                            sharedTags = matches.map(tag => tag.slice(1)); // remove # symbol
+                            // Remove hashtags from description to keep it clean
+                            description = description.replace(hashtagRegex, '').trim();
+                            logger.info({ tags: sharedTags, originalDescription: description }, 'extracted tags from batch');
+                        }
+                        sharedDescription = description;
                     }
                 }
-                // extract caption/text as description if available
-                let description = '';
-                if (content.imageMessage?.caption)
-                    description = content.imageMessage.caption;
-                else if (content.videoMessage?.caption)
-                    description = content.videoMessage.caption;
-                else if (content.documentMessage?.caption)
-                    description = content.documentMessage.caption;
-                else if (content.conversation)
-                    description = content.conversation;
-                else if (content.extendedTextMessage?.text)
-                    description = content.extendedTextMessage.text;
-                // optional: trim overly long descriptions
-                if (description && description.length > 1000)
-                    description = description.slice(0, 1000);
-                // Extract tags from description (look for #hashtags)
-                let tags = [];
-                if (description) {
-                    const hashtagRegex = /#(\w+)/g;
-                    const matches = description.match(hashtagRegex);
-                    if (matches) {
-                        tags = matches.map(tag => tag.slice(1)); // remove # symbol
-                        // Remove hashtags from description to keep it clean
-                        description = description.replace(hashtagRegex, '').trim();
-                        logger.info({ tags, originalDescription: description }, 'extracted tags from message');
+                mediaMessages.push({ msg, remoteJid, isGroup });
+                logger.info({ remoteJid, hasMedia, batchSize: mediaMessages.length }, 'Added to media batch');
+            }
+            // Process all media messages in the batch
+            if (mediaMessages.length > 0) {
+                logger.info({ batchSize: mediaMessages.length, tags: sharedTags }, 'Processing media batch');
+                for (const { msg, remoteJid, isGroup } of mediaMessages) {
+                    const id = msg?.key?.id;
+                    try {
+                        const content = msg.message || {};
+                        // download
+                        const buffer = await downloadMediaMessage(msg, 'buffer', {});
+                        // derive filename and mime
+                        let fileName = 'wa-media';
+                        let mimeType = 'application/octet-stream';
+                        if (content.imageMessage) {
+                            fileName = content.imageMessage?.fileName || `image-${Date.now()}.jpg`;
+                            mimeType = content.imageMessage?.mimetype || 'image/jpeg';
+                        }
+                        else if (content.videoMessage) {
+                            fileName = content.videoMessage?.fileName || `video-${Date.now()}.mp4`;
+                            mimeType = content.videoMessage?.mimetype || 'video/mp4';
+                        }
+                        else if (content.documentMessage) {
+                            fileName = content.documentMessage?.fileName || `document-${Date.now()}`;
+                            mimeType = content.documentMessage?.mimetype || 'application/octet-stream';
+                        }
+                        else if (content.audioMessage) {
+                            fileName = `audio-${Date.now()}.ogg`;
+                            mimeType = content.audioMessage?.mimetype || 'audio/ogg';
+                        }
+                        else if (content.stickerMessage) {
+                            fileName = `sticker-${Date.now()}.webp`;
+                            mimeType = 'image/webp';
+                        }
+                        const category = mapCategory(mimeType, fileName);
+                        // determine sender phone (group: participant; dm: remoteJid)
+                        const senderJid = (msg.key?.participant) || remoteJid || '';
+                        let phone = undefined;
+                        if (senderJid) {
+                            const num = String(senderJid).split('@')[0] || '';
+                            const digits = num.replace(/\D/g, '');
+                            if (digits.length >= 8 && digits.length <= 15) {
+                                phone = `+${digits}`;
+                            }
+                        }
+                        // Do not upload if we couldn't extract sender phone
+                        if (!phone) {
+                            logger.warn({ remoteJid }, 'skip upload: could not extract sender phone');
+                            processed[id] = true;
+                            continue;
+                        }
+                        const isPublic = !!isGroup;
+                        const uploadResult = await uploadToApi({
+                            buffer, fileName, mimeType, category, isPublic,
+                            description: sharedDescription, phone, tags: sharedTags
+                        });
+                        // Store successful upload for batch reply
+                        if (uploadResult) {
+                            mediaMessages[mediaMessages.findIndex(m => m.msg.key.id === id)].uploadResult = uploadResult;
+                        }
+                        processed[id] = true;
+                    }
+                    catch (err) {
+                        logger.error({ err, id }, 'Error processing individual media file');
+                        processed[id] = true;
                     }
                 }
-                // Do not upload if we couldn't extract sender phone
-                if (!phone) {
-                    logger.warn({ remoteJid }, 'skip upload: could not extract sender phone');
-                    processed[id] = true;
-                    continue;
-                }
-                const isPublic = !!isGroup;
-                await uploadToApi({ buffer, fileName, mimeType, category, isPublic, description, phone, tags });
-                processed[id] = true;
-                // persist periodically
-                if (Object.keys(processed).length % 25 === 0)
+                // Send auto-reply with upload summary
+                if (mediaMessages.length > 0) {
                     await saveProcessed(processed);
+                    // Count successful uploads
+                    const successfulUploads = mediaMessages.filter(m => m.uploadResult).length;
+                    const failedUploads = mediaMessages.length - successfulUploads;
+                    if (successfulUploads > 0) {
+                        const firstMsg = mediaMessages[0].msg;
+                        const replyJid = firstMsg.key.remoteJid;
+                        let replyText = `✅ *Upload Berhasil*\n\n`;
+                        replyText += `📁 ${successfulUploads} file berhasil diupload\n`;
+                        if (sharedDescription) {
+                            replyText += `📝 Deskripsi: ${sharedDescription}\n`;
+                        }
+                        if (sharedTags.length > 0) {
+                            replyText += `🏷️ Tags: ${sharedTags.map(t => `#${t}`).join(' ')}\n`;
+                        }
+                        if (failedUploads > 0) {
+                            replyText += `\n⚠️ ${failedUploads} file gagal diupload`;
+                        }
+                        replyText += `\n\n📊 Akses file: ${BASE_URL}/user/files`;
+                        try {
+                            await sock.sendMessage(replyJid, { text: replyText });
+                            logger.info({ replyJid, successfulUploads, failedUploads }, 'sent auto-reply');
+                        }
+                        catch (err) {
+                            logger.error({ err, replyJid }, 'failed to send auto-reply');
+                        }
+                    }
+                }
             }
         }
         catch (err) {

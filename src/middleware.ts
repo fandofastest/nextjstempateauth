@@ -16,10 +16,11 @@ export default withAuth(
     if (url.pathname.startsWith('/user')) {
       const role = token?.role;
       if (role && role !== 'admin') {
-        // Allow customers to access user root, files module, and profile
+        // Allow customers to access user root, files module, profile, and dashboard
         if (url.pathname === '/user' || 
             url.pathname.startsWith('/user/files') || 
-            url.pathname.startsWith('/user/profile')) {
+            url.pathname.startsWith('/user/profile') ||
+            url.pathname.startsWith('/user/dashboard')) {
           return NextResponse.next();
         }
         url.pathname = '/';
