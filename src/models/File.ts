@@ -10,6 +10,7 @@ export interface IFile extends Document {
   uploader: Types.ObjectId;
   category?: string;
   description?: string;
+  tags: string[];
   isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -26,6 +27,7 @@ const FileSchema: Schema = new Schema(
     uploader: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     category: { type: String, index: true },
     description: { type: String, default: '' },
+    tags: { type: [String], default: [], index: true },
     isPublic: { type: Boolean, default: false },
   },
   { timestamps: true }

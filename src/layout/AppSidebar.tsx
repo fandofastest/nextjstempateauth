@@ -20,8 +20,8 @@ import {
 import SidebarWidget from "./SidebarWidget";
 
 type NavItem = {
-  name: string;
   icon: React.ReactNode;
+  name: string;
   path?: string;
   subItems?: { name: string; path: string }[];
 };
@@ -30,12 +30,12 @@ const navItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Dashboard",
-    path: "/admin",
+    path: "/user",
   },
   {
     icon: <PageIcon />,
     name: "Files",
-    path: "/admin/files",
+    path: "/user/files",
   },
 ];
 
@@ -43,12 +43,12 @@ const othersItems: NavItem[] = [
   {
     icon: <UserCircleIcon />,
     name: "Users",
-    path: "/admin/users",
+    path: "/user/users",
   },
   {
     icon: <PageIcon />,
     name: "Roles",
-    path: "/admin/roles",
+    path: "/user/roles",
   },
 ];
 
@@ -231,38 +231,45 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <Link href="/admin/dashboard">
+        <Link href="/user">
           {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <Image
-                className="dark:hidden"
-                src="/images/logo/logo.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-              <Image
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-              />
-            </>
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-brand-700 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">KPU</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-gray-900 dark:text-white text-lg">KPU Kota Dumai</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Sistem Aset Digital</span>
+              </div>
+            </div>
           ) : (
-            <Image
-              src="/images/logo/logo-icon.svg"
-              alt="Logo"
-              width={32}
-              height={32}
-            />
+            <div className="w-8 h-8 bg-brand-700 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">KPU</span>
+            </div>
           )}
         </Link>
       </div>
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
         <nav className="mb-6">
-          <div className="flex flex-col gap-4">
-            <div>
+          <div>
+            <h2
+              className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                !isExpanded && !isHovered
+                  ? "lg:justify-center"
+                  : "justify-start"
+              }`}
+            >
+              {isExpanded || isHovered || isMobileOpen ? (
+                "Menu"
+              ) : (
+                <HorizontaLDots />
+              )}
+            </h2>
+            {renderMenuItems(navItems, "main")}
+          </div>
+
+          {role === 'admin' && (
+            <div className="">
               <h2
                 className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
                   !isExpanded && !isHovered
@@ -271,33 +278,14 @@ const AppSidebar: React.FC = () => {
                 }`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (
-                  "Menu"
+                  "Others"
                 ) : (
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(othersItems, "others")}
             </div>
-
-            {role === 'admin' && (
-              <div className="">
-                <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                    !isExpanded && !isHovered
-                      ? "lg:justify-center"
-                      : "justify-start"
-                  }`}
-                >
-                  {isExpanded || isHovered || isMobileOpen ? (
-                    "Others"
-                  ) : (
-                    <HorizontaLDots />
-                  )}
-                </h2>
-                {renderMenuItems(othersItems, "others")}
-              </div>
-            )}
-          </div>
+          )}
         </nav>
         {/* {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null} */}
       </div>

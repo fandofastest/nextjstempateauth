@@ -102,8 +102,8 @@ export default function SignUpForm() {
         formData.phone
       );
       
-      // Redirect ke halaman admin setelah pendaftaran berhasil
-      router.push('/admin');
+      // Redirect ke halaman user setelah pendaftaran berhasil
+      router.push('/user');
       
       // Show success message
       if (typeof window !== 'undefined') {

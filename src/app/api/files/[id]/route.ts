@@ -85,10 +85,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (!isAdmin && !isOwner) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
     const body = await request.json().catch(() => null);
-    // accept either { category, isPublic, description } or { file: { category, isPublic, description } }
+    // accept either { category, isPublic, description, tags } or { file: { category, isPublic, description, tags } }
     let incomingCategory = body ? (typeof body.category !== 'undefined' ? body.category : body?.file?.category) : undefined as any;
     let incomingIsPublic = body ? (typeof body.isPublic !== 'undefined' ? body.isPublic : body?.file?.isPublic) : undefined as any;
     let incomingDescription = body ? (typeof body.description !== 'undefined' ? body.description : body?.file?.description) : undefined as any;
+    let incomingTags = body ? (typeof body.tags !== 'undefined' ? body.tags : body?.file?.tags) : undefined as any;
     if (typeof incomingCategory === 'string') incomingCategory = incomingCategory.trim();
     if (typeof incomingIsPublic !== 'undefined') incomingIsPublic = Boolean(incomingIsPublic);
     if (typeof incomingDescription === 'string') incomingDescription = incomingDescription.trim();
@@ -113,6 +114,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         update.$unset = { ...(update.$unset || {}), description: 1 };
       } else {
         update.$set = { ...(update.$set || {}), description: incomingDescription };
+      }
+    }
+    if (typeof incomingTags !== 'undefined') {
+      if (Array.isArray(incomingTags)) {
+        update.$set = { ...(update.$set || {}), tags: incomingTags };
+      } else {
+        update.$set = { ...(update.$set || {}), tags: [] };
       }
     }
     if (!update.$set && !update.$unset) {

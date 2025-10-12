@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.token && response.user) {
         localStorage.setItem('token', response.token);
         setUser(response.user);
-        router.push('/admin');
+        router.push('/user');
       } else {
         throw new Error('Invalid response from server');
       }
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.token && response.user) {
         localStorage.setItem('token', response.token);
         setUser(response.user);
-        router.push('/admin');
+        router.push('/user');
       } else {
         throw new Error('Invalid response from server');
       }

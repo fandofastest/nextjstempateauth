@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '20'), 100);
     const q = (url.searchParams.get('q') || '').trim();
     const category = url.searchParams.get('category') || '';
+    const tags = url.searchParams.get('tags') || '';
     const startDate = url.searchParams.get('startDate'); // ISO date
     const endDate = url.searchParams.get('endDate'); // ISO date
 
@@ -70,6 +71,7 @@ export async function GET(request: Request) {
         { originalName: { $regex: regex } },
         { mimeType: { $regex: regex } },
         { description: { $regex: regex } },
+        { tags: { $elemMatch: { $regex: regex } } },
       ];
       if (uploaderMatchIds.length) {
         searchOr.push({ uploader: { $in: uploaderMatchIds } });
@@ -79,6 +81,13 @@ export async function GET(request: Request) {
 
     if (category) {
       andClauses.push({ category });
+    }
+
+    if (tags) {
+      const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+      if (tagArray.length > 0) {
+        andClauses.push({ tags: { $in: tagArray } });
+      }
     }
 
     if (startDate || endDate) {
@@ -128,6 +137,20 @@ export async function POST(request: Request) {
     const phone = typeof phoneRaw === 'string' ? phoneRaw.trim() : undefined;
     const descriptionRaw = formData.get('description');
     const description = typeof descriptionRaw === 'string' ? descriptionRaw : undefined;
+    const tagsRaw = formData.get('tags');
+    let tags: string[] = [];
+    if (tagsRaw) {
+      try {
+        tags = JSON.parse(tagsRaw as string);
+        if (!Array.isArray(tags)) {
+          tags = [];
+        }
+      } catch (e) {
+        console.error('Error parsing tags:', e);
+        tags = [];
+      }
+    }
+    console.log('Tags received:', tags);
     const isPublicRaw = formData.get('isPublic');
     const isPublic = typeof isPublicRaw === 'string' ? (isPublicRaw === 'true' || isPublicRaw === '1' || isPublicRaw === 'on') : false;
     if (!file) return NextResponse.json({ message: 'No file uploaded' }, { status: 400 });
@@ -165,7 +188,7 @@ export async function POST(request: Request) {
       uploaderId = user._id;
     }
 
-    const doc = await FileModel.create({
+    const docData = {
       originalName: file.name,
       storedName,
       size: file.size,
@@ -174,8 +197,13 @@ export async function POST(request: Request) {
       uploader: uploaderId,
       category,
       description,
+      tags: Array.isArray(tags) ? tags : [],
       isPublic,
-    });
+    };
+    
+    console.log('Creating document with data:', docData);
+    const doc = await FileModel.create(docData);
+    console.log('Created document:', doc);
 
     return NextResponse.json({ file: doc }, { status: 201 });
   } catch (err: any) {

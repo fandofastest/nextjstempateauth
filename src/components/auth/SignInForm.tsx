@@ -63,8 +63,8 @@ export default function SignInForm() {
     setLoading(true);
 
     try {
-      // Ambil URL callback dari parameter atau gunakan /admin sebagai default
-      const callbackUrl = searchParams.get('callbackUrl') || '/admin';
+      // Ambil URL callback dari parameter atau gunakan /user sebagai default
+      const callbackUrl = searchParams.get('callbackUrl') || '/user';
       
       // Gunakan NextAuth signIn untuk autentikasi dengan credentials provider
       const result = await signIn('credentials', {
@@ -186,7 +186,7 @@ export default function SignInForm() {
         <button
           type="button"
           onClick={() => {
-            const callbackUrl = searchParams.get('callbackUrl') || '/admin';
+            const callbackUrl = searchParams.get('callbackUrl') || '/user';
             signIn('google', { callbackUrl });
           }}
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium border rounded-lg border-gray-300 text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700"

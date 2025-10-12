@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { withAuth } from 'next-auth/middleware';
 
-// Middleware sederhana yang hanya melindungi rute admin
+// Middleware sederhana yang hanya melindungi rute user
 export default withAuth(
   // Fungsi middleware dijalankan setelah otentikasi berhasil
   function middleware(req) {
@@ -11,13 +11,15 @@ export default withAuth(
     const url = req.nextUrl;
     const token = (req as any).nextauth?.token as any;
 
-    // Jika user sudah login tapi bukan admin dan mencoba akses /admin,
-    // izinkan akses khusus ke /admin/files untuk fitur upload.
-    if (url.pathname.startsWith('/admin')) {
+    // Jika user sudah login tapi bukan admin dan mencoba akses /user,
+    // izinkan akses khusus ke /user/files untuk fitur upload dan /user/profile untuk profil.
+    if (url.pathname.startsWith('/user')) {
       const role = token?.role;
       if (role && role !== 'admin') {
-        // Allow customers to access admin root and files module
-        if (url.pathname === '/admin' || url.pathname.startsWith('/admin/files')) {
+        // Allow customers to access user root, files module, and profile
+        if (url.pathname === '/user' || 
+            url.pathname.startsWith('/user/files') || 
+            url.pathname.startsWith('/user/profile')) {
           return NextResponse.next();
         }
         url.pathname = '/';
@@ -48,7 +50,7 @@ export default withAuth(
   }
 );
 
-// Hanya terapkan middleware ini ke rute admin
+// Hanya terapkan middleware ini ke rute user
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/user/:path*'],
 };

@@ -3,8 +3,8 @@ import { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Masuk | Malay Futsal",
-  description: "Masuk ke akun Malay Futsal Anda",
+  title: "Masuk | Sistem Aset Digital KPU Kota Dumai",
+  description: "Masuk ke Sistem Aset Digital KPU Kota Dumai",
 };
 
 export default function SignIn() {
@@ -12,10 +12,10 @@ export default function SignIn() {
     <div className="w-full">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-          Selamat Datang Kembali
+          Sistem Aset Digital
         </h2>
         <p className="mt-2 text-gray-600 dark:text-gray-300">
-          Silakan masuk untuk mengakses akun Anda
+          KPU Kota Dumai - Silakan masuk untuk mengakses sistem
         </p>
       </div>
       

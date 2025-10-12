@@ -116,8 +116,8 @@ async function saveProcessed(store: Record<string, boolean>) {
   await fs.writeFile(PROCESSED_STORE, JSON.stringify(store, null, 2), 'utf-8')
 }
 
-async function uploadToApi(opts: { buffer: Buffer, fileName: string, mimeType: string, category?: string, isPublic?: boolean, description?: string, phone?: string }) {
-  const { buffer, fileName, mimeType, category, isPublic = false, description, phone } = opts
+async function uploadToApi(opts: { buffer: Buffer, fileName: string, mimeType: string, category?: string, isPublic?: boolean, description?: string, phone?: string, tags?: string[] }) {
+  const { buffer, fileName, mimeType, category, isPublic = false, description, phone, tags } = opts
   const url = `${BASE_URL.replace(/\/$/, '')}/api/files`
 
   const maxBytes = MAX_SIZE_MB * 1024 * 1024
@@ -127,12 +127,13 @@ async function uploadToApi(opts: { buffer: Buffer, fileName: string, mimeType: s
   }
 
   const fd = new FormData()
-  const blob = new Blob([buffer], { type: mimeType || 'application/octet-stream' })
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType || 'application/octet-stream' })
   fd.append('file', blob, fileName)
   if (category) fd.append('category', category)
   fd.append('isPublic', isPublic ? 'true' : 'false')
   if (description && description.trim().length) fd.append('description', description.trim())
   if (phone && phone.trim().length) fd.append('phone', phone.trim())
+  if (tags && tags.length > 0) fd.append('tags', JSON.stringify(tags))
 
   const doRequest = async () => fetch(url, {
     method: 'POST',
@@ -162,7 +163,7 @@ async function uploadToApi(opts: { buffer: Buffer, fileName: string, mimeType: s
     }
   } else {
     const json = await res.json().catch(() => ({}))
-    logger.info({ file: json?.file || {} }, 'uploaded')
+    logger.info({ file: json?.file || {}, tags: tags || [] }, 'uploaded')
   }
 }
 
@@ -212,6 +213,7 @@ async function start() {
 
   sock.ev.on('messages.upsert', async (m: any) => {
     try {
+      logger.trace({ messageCount: m.messages.length }, 'Received messages batch')
       for (const msg of m.messages) {
         const id = msg?.key?.id
         if (!id || processed[id]) continue
@@ -219,22 +221,51 @@ async function start() {
         const remoteJid = msg.key.remoteJid || ''
         const fromMe = !!msg.key.fromMe
         const isGroup = remoteJid.endsWith('@g.us')
+        
+        logger.trace({ 
+          id, remoteJid, fromMe, isGroup, 
+          messageType: Object.keys(msg.message || {}) 
+        }, 'Processing message')
+        
+        if (fromMe) {
+          logger.trace('Skipping message from self')
+          processed[id] = true
+          continue
+        }
+        
         if (isGroup) {
           logger.info({ groupJid: remoteJid }, 'Incoming message from group')
-        }
-        if (isGroup) {
-          if (GROUP_IDS.length && !GROUP_IDS.includes(remoteJid)) continue
+          if (GROUP_IDS.length && !GROUP_IDS.includes(remoteJid)) {
+            logger.trace('Group not in allowed list, skipping')
+            continue
+          }
         } else {
-          if (!INCLUDE_DMS) continue
+          logger.info({ dmJid: remoteJid }, 'Incoming DM message')
+          if (!INCLUDE_DMS) {
+            logger.trace('DMs not enabled, skipping')
+            continue
+          }
         }
 
         // detect media message kinds
         const content = msg.message || {}
         const hasMedia = !!(content.imageMessage || content.videoMessage || content.documentMessage || content.audioMessage || content.stickerMessage)
+        
+        logger.trace({ 
+          hasMedia, 
+          contentKeys: Object.keys(content),
+          hasImage: !!content.imageMessage,
+          hasVideo: !!content.videoMessage,
+          hasDocument: !!content.documentMessage
+        }, 'Media detection')
+        
         if (!hasMedia) {
+          logger.trace('No media found in message, skipping')
           processed[id] = true
           continue
         }
+        
+        logger.info({ remoteJid, hasMedia }, 'Processing media message')
 
         // download
         const buffer = await downloadMediaMessage(msg as any, 'buffer', {}) as Buffer
@@ -281,6 +312,19 @@ async function start() {
         // optional: trim overly long descriptions
         if (description && description.length > 1000) description = description.slice(0, 1000)
 
+        // Extract tags from description (look for #hashtags)
+        let tags: string[] = []
+        if (description) {
+          const hashtagRegex = /#(\w+)/g
+          const matches = description.match(hashtagRegex)
+          if (matches) {
+            tags = matches.map(tag => tag.slice(1)) // remove # symbol
+            // Remove hashtags from description to keep it clean
+            description = description.replace(hashtagRegex, '').trim()
+            logger.info({ tags, originalDescription: description }, 'extracted tags from message')
+          }
+        }
+
         // Do not upload if we couldn't extract sender phone
         if (!phone) {
           logger.warn({ remoteJid }, 'skip upload: could not extract sender phone')
@@ -289,7 +333,7 @@ async function start() {
         }
 
         const isPublic = !!isGroup
-        await uploadToApi({ buffer, fileName, mimeType, category, isPublic, description, phone })
+        await uploadToApi({ buffer, fileName, mimeType, category, isPublic, description, phone, tags })
 
         processed[id] = true
         // persist periodically

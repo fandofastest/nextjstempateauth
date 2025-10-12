@@ -24,6 +24,7 @@ export interface FileItem {
   uploader: string | { _id: string; name?: string; email?: string; phone?: string };
   category?: string;
   description?: string;
+  tags: string[];
   isPublic: boolean;
   createdAt: string;
   updatedAt: string;
@@ -35,6 +36,7 @@ export const fileService = {
     pageSize = 20,
     q = "",
     category = "",
+    tags = "",
     startDate?: string,
     endDate?: string
   ): Promise<{ files: FileItem[]; total: number; page: number; pageSize: number }> {
@@ -43,6 +45,7 @@ export const fileService = {
     url.searchParams.set("pageSize", String(pageSize));
     if (q) url.searchParams.set("q", q);
     if (category) url.searchParams.set("category", category);
+    if (tags) url.searchParams.set("tags", tags);
     if (startDate) url.searchParams.set("startDate", startDate);
     if (endDate) url.searchParams.set("endDate", endDate);
     const res = await fetch(url.toString(), { headers: { ...buildAuthHeaders() } });
@@ -68,12 +71,13 @@ export const fileService = {
     return data.category as CategoryItem;
   },
 
-  async upload(file: File, category?: string, isPublic: boolean = false, description?: string): Promise<FileItem> {
+  async upload(file: File, category?: string, isPublic: boolean = false, description?: string, tags: string[] = []): Promise<FileItem> {
     const form = new FormData();
     form.append("file", file);
     if (category) form.append("category", category);
     if (isPublic) form.append("isPublic", String(isPublic));
     if (typeof description === 'string' && description.length) form.append('description', description);
+    form.append('tags', JSON.stringify(tags));
     const res = await fetch(`${API_PREFIX}/files`, {
       method: "POST",
       headers: { ...buildAuthHeaders() },
@@ -118,7 +122,7 @@ export const fileService = {
     return data.file as FileItem;
   },
 
-  async updateMeta(id: string, payload: { category?: string; isPublic?: boolean; description?: string }): Promise<FileItem> {
+  async updateMeta(id: string, payload: { category?: string; isPublic?: boolean; description?: string; tags?: string[] }): Promise<FileItem> {
     const res = await fetch(`${API_PREFIX}/files/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...buildAuthHeaders() },
