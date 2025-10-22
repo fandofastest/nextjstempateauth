@@ -2,6 +2,9 @@ import SignInForm from "@/components/auth/SignInForm";
 import { Metadata } from "next";
 import Link from "next/link";
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 export const metadata: Metadata = {
   title: "Masuk | Sistem Aset Digital KPU Kota Dumai",
   description: "Masuk ke Sistem Aset Digital KPU Kota Dumai",

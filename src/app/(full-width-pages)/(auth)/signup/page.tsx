@@ -2,6 +2,9 @@ import SignUpForm from "@/components/auth/SignUpForm";
 import Link from "next/link";
 import { Metadata } from "next";
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 export const metadata: Metadata = {
   title: "Daftar Akun | Malay Futsal",
   description: "Buat akun baru untuk memesan lapangan futsal",
