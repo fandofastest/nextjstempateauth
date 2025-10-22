@@ -29,7 +29,10 @@ async function requireUser(request: Request) {
 }
 
 function ensureUploadsDir() {
-  const uploadDir = path.join(process.cwd(), 'uploads');
+  const configured = process.env.UPLOAD_DIR;
+  const uploadDir = configured && configured.trim().length > 0
+    ? configured
+    : path.join(process.cwd(), 'uploads');
   if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
   return uploadDir;
 }
